@@ -22,55 +22,87 @@ def save_questions_to_txt(questions_content, filename="quiz_questions.txt"):
 # Đường dẫn đến thư mục chứa các file văn bản của bạn
 text_folder_path = "txt_split_result"
 
-# Danh sách các file bạn muốn đọc
-files_to_read = ["output3.txt", "output4.txt"]
-
-combined_txt = ""
-
-try:
-    for filename in files_to_read:
-        file_path = os.path.join(text_folder_path, filename)
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                combined_txt += f.read()
-            combined_txt += "\n\n--- Hết nội dung từ " + filename + " ---\n\n"
-        else:
-            print(f"⚠️ Cảnh báo: Không tìm thấy file '{filename}' tại đường dẫn '{file_path}'. Bỏ qua file này.")
-
-except Exception as e:
-    print(f"❌ Đã xảy ra lỗi khi đọc file: {e}")
-    exit()
-
 # Cấu hình API key của bạn
+# LƯU Ý: Không nên cứng nhắc API key trong code. Nên dùng biến môi trường để bảo mật hơn.
 genai.configure(api_key="AIzaSyDWpBekYHSjzqtiJPR6-1e9xYKkTpUuBDo")
 
-# Gửi yêu cầu tạo nội dung
-prompt = f"""
-    Hãy đóng vai một giáo viên. Dựa vào nội dung văn bản dưới đây, mỗi chương hãy tạo 20-30 câu hỏi trắc nghiệm để kiểm tra kiến thức.
+# Kiểm tra xem thư mục đầu vào có tồn tại không
+if not os.path.exists(text_folder_path):
+    print(f"❌ Lỗi: Thư mục '{text_folder_path}' không tồn tại. Vui lòng kiểm tra đường dẫn.")
+    exit()
 
-    Yêu cầu:
-    - Mỗi câu hỏi có 4 lựa chọn (A, B, C, D).
-    - Các phương án sai phải hợp lý và có liên quan.
-    - Ghi rõ đáp án đúng sau mỗi câu hỏi (ví dụ: **Đáp án:** A).
+# Lấy danh sách tất cả các file .txt trong thư mục và sắp xếp theo tên
+# Việc sắp xếp giúp đảm bảo thứ tự xử lý nhất quán (ví dụ: output1.txt, output2.txt, ...)
+all_txt_files = sorted([f for f in os.listdir(text_folder_path) if f.endswith('.txt')])
 
-    Văn bản:
-    \"\"\"
-    {combined_txt}
-    \"\"\"
-    """
-try:
-    print("✅ Đã đọc văn bản thành công. Đang gửi yêu cầu đến Gemini...")
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
-    response = model.generate_content(prompt)
+if not all_txt_files:
+    print(f"⚠️ Cảnh báo: Không tìm thấy file .txt nào trong thư mục '{text_folder_path}'.")
+    exit()
 
-    generated_questions = response.text
+print(f"Tìm thấy {len(all_txt_files)} file .txt để xử lý trong '{text_folder_path}'.")
 
-    # In kết quả ra màn hình
-    print("\n🎉 CÁC CÂU HỎI TRẮC NGHIỆM ĐÃ TẠO:\n")
-    print(generated_questions)
+# --- Logic chính để xử lý các file theo từng cặp (2 file một lượt) ---
+batch_number = 0 # Biến đếm số lô đã xử lý
+# Vòng lặp này sẽ nhảy 2 bước một lần (i = 0, 2, 4, ...)
+for i in range(0, len(all_txt_files), 2):
+    batch_number += 1
+    # Lấy 1 hoặc 2 file cho lô hiện tại
+    # Nếu chỉ còn 1 file ở cuối danh sách, nó sẽ chỉ lấy file đó
+    current_batch_files = all_txt_files[i:i+2] 
+    
+    combined_txt_for_batch = "" # Chuỗi để lưu nội dung kết hợp của lô hiện tại
+    processed_filenames = [] # Danh sách tên file trong lô hiện tại
 
-    # --- Gọi hàm để lưu câu hỏi vào file ---
-    save_questions_to_txt(generated_questions, "my_quiz_output.txt") # Bạn có thể thay đổi tên file ở đây
+    print(f"\n--- Bắt đầu xử lý lô số {batch_number} ---")
+    for filename in current_batch_files:
+        file_path = os.path.join(text_folder_path, filename)
+        processed_filenames.append(filename)
+        print(f"Đang đọc file: {filename}...")
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                combined_txt_for_batch += f.read()
+            # Thêm dấu phân cách rõ ràng giữa nội dung các file
+            combined_txt_for_batch += f"\n\n--- Hết nội dung từ {filename} ---\n\n" 
+        except Exception as e:
+            print(f"❌ Đã xảy ra lỗi khi đọc file '{filename}': {e}")
+            # Bạn có thể quyết định bỏ qua file này hoặc thoát chương trình nếu lỗi nghiêm trọng
 
-except Exception as e:
-    print(f"❌ Đã xảy ra lỗi khi gọi Gemini API: {e}")
+    # Kiểm tra xem có nội dung để xử lý trong lô này không
+    if not combined_txt_for_batch.strip():
+        print(f"⚠️ Lô số {batch_number} không có nội dung để xử lý. Bỏ qua.")
+        continue
+
+    # Gửi yêu cầu tạo nội dung cho lô hiện tại đến Gemini API
+    prompt = f"""
+        Hãy đóng vai một giáo viên. Dựa vào nội dung văn bản dưới đây, mỗi chương hãy tạo 25-40 câu hỏi trắc nghiệm để kiểm tra kiến thức.
+
+        Yêu cầu:
+        - Mỗi câu hỏi có 4 lựa chọn (A, B, C, D).
+        - Các phương án sai phải hợp lý và có liên quan.
+        - Ghi rõ đáp án đúng sau mỗi câu hỏi (ví dụ: **Đáp án:** A).
+
+        Văn bản:
+        \"\"\"
+        {combined_txt_for_batch}
+        \"\"\"
+        """
+    try:
+        print(f"✅ Đã đọc văn bản thành công cho lô {batch_number} (từ các file: {', '.join(processed_filenames)}). Đang gửi yêu cầu đến Gemini...")
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        response = model.generate_content(prompt)
+
+        generated_questions = response.text
+
+        # In kết quả ra màn hình cho lô hiện tại
+        print(f"\n🎉 CÁC CÂU HỎI TRẮC NGHIỆM ĐÃ TẠO CHO LÔ {batch_number}:\n")
+        print(generated_questions)
+
+        # --- Gọi hàm để lưu câu hỏi vào file ---
+        # Đặt tên file output có số lô để dễ quản lý, ví dụ: my_quiz_output_batch_1.txt, my_quiz_output_batch_2.txt
+        output_filename = f"result/my_quiz_output_batch_{batch_number}.txt"
+        save_questions_to_txt(generated_questions, output_filename) 
+
+    except Exception as e:
+        print(f"❌ Đã xảy ra lỗi khi gọi Gemini API cho lô {batch_number}: {e}")
+
+print("\n--- Tất cả các lô đã được xử lý xong! ---")
