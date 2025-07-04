@@ -20,7 +20,7 @@ def save_questions_to_txt(questions_content, filename="quiz_questions.txt"):
 # --- Bắt đầu code chính của chương trình ---
 
 # Đường dẫn đến thư mục chứa các file văn bản của bạn
-text_folder_path = "txt_split_result"
+text_folder_path = "txt_output"
 
 # Cấu hình API key của bạn
 # LƯU Ý: Không nên cứng nhắc API key trong code. Nên dùng biến môi trường để bảo mật hơn.
@@ -41,14 +41,12 @@ if not all_txt_files:
 
 print(f"Tìm thấy {len(all_txt_files)} file .txt để xử lý trong '{text_folder_path}'.")
 
-# --- Logic chính để xử lý các file theo từng cặp (2 file một lượt) ---
-batch_number = 0 # Biến đếm số lô đã xử lý
-# Vòng lặp này sẽ nhảy 2 bước một lần (i = 0, 2, 4, ...)
-for i in range(0, len(all_txt_files), 2):
+batch_number = 0
+
+for txt_file in all_txt_files:
     batch_number += 1
-    # Lấy 1 hoặc 2 file cho lô hiện tại
-    # Nếu chỉ còn 1 file ở cuối danh sách, nó sẽ chỉ lấy file đó
-    current_batch_files = all_txt_files[i:i+2] 
+    current_batch_files = [txt_file]  # Đóng vào list để logic sau không đổi
+
     
     combined_txt_for_batch = "" # Chuỗi để lưu nội dung kết hợp của lô hiện tại
     processed_filenames = [] # Danh sách tên file trong lô hiện tại
@@ -74,13 +72,13 @@ for i in range(0, len(all_txt_files), 2):
 
     # Gửi yêu cầu tạo nội dung cho lô hiện tại đến Gemini API
     prompt = f"""
-        Hãy đóng vai một giáo viên. Dựa vào nội dung văn bản dưới đây, mỗi chương hãy tạo 25-40 câu hỏi trắc nghiệm để kiểm tra kiến thức.
+        Hãy đóng vai một giáo viên. Dựa vào nội dung văn bản dưới đây, mỗi chương hãy tạo 30-60 câu hỏi trắc nghiệm để kiểm tra kiến thức.
 
         Yêu cầu:
         - Mỗi câu hỏi có 4 lựa chọn (A, B, C, D).
         - Các phương án sai phải hợp lý và có liên quan.
         - Ghi rõ đáp án đúng sau mỗi câu hỏi (ví dụ: **Đáp án:** A).
-
+        Hãy làm tối đa số câu hỏi có thể làm được 
         Văn bản:
         \"\"\"
         {combined_txt_for_batch}

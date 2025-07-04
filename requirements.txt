@@ -1,3 +1,4 @@
 google-generativeai
 PyMuPDF
 easyocr
+pdf2image
